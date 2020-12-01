@@ -1,0 +1,288 @@
+---
+title: 'vegan workshop - SCCWRP Tidy Tuesday'
+author: "Scott Coffin"
+date: "10 October 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+More details regarding ordination and visualization can be found [here](https://rpubs.com/an-bui/vegan-cheat-sheet).
+
+```{r libraries-data, message = FALSE}
+# libraries
+library(tidyverse)
+library(vegan)
+
+# optional
+library(ggvegan) #not sure why I can't install
+```
+
+```{r data-google-drive}
+# data
+# bird communities
+birds <- read_csv("bird-comm.csv") %>% 
+  column_to_rownames("site")
+
+# environmental variables
+env <- read_csv("env-var.csv")
+```
+
+```{r metadata-setup}
+# set up a "metadata" frame - will be useful for plotting later!
+site_type <- env %>% 
+  # selects the named columns
+  select(site, landtype)
+```
+
+
+### How speciose are my communities?
+
+```{r species-richness}
+#Calculate species richenss: number species per site
+sppr <- specnumber(birds)
+
+# analysis of variance, how is specieis number related to landtype?
+sppr_aov <- aov(sppr ~ landtype, data = site_type)
+summary(sppr_aov) 
+#ssems landtype may not be significant predictor
+```
+
+```{r species-richness-plot}
+#Create new dataframe from the named vector
+sppr_df <- sppr %>% 
+  
+  enframe() %>% 
+# Join with the metadata frame  
+  full_join(site_type, by = c("name" = "site"))
+
+sppr_plot <- ggplot(sppr_df, aes(x = landtype, y = value, color = landtype)) +
+  geom_boxplot()
+sppr_plot
+```
+
+### How diverse are my communities?
+
+```{r shannon-diversity}
+# vegan::diversity
+shannondiv <- diversity(birds)
+
+# try simpson's diversity
+simpsonsdiv <- diversity(birds, index = "simpson")
+```
+
+```{r shannon-diversity-plot}
+#Create a dataframe from the named vector
+shandiv_df <- shannondiv %>% 
+  enframe() %>% 
+  #join with the metadata
+  full_join(., site_type, by = c("name" = "site")) %>% 
+  #calculate mean shannon diversity across land types
+  group_by(landtype) %>% 
+  summarize(mean = mean(value))
+
+shandiv_plot <- ggplot(shandiv_df, aes(x = landtype, y = mean, fill = landtype)) +
+  geom_col()
+shandiv_plot
+```
+
+### How different are my communities in species composition?
+
+#### perMANOVA
+```{r bird-permanova}
+#Vegan::adonis()
+# adonis(response ~ environment, dataframe)
+bird_perm <- adonis(birds ~ landtype, data = env)
+bird_perm
+```
+
+#### PCA
+
+```{r bird-PCA}
+#PCA is like condensing all axes into two
+#vegan::rda = redundancy analysis- performs PCA
+birdPCA <- rda(birds)
+birdPCA
+#summing the first two components is about 35%, which is relatively high
+
+summary(birdPCA)
+
+#use scores() to extract the coordinates for the sites
+PCAscores <- scores(birdPCA, display = "sites") %>% 
+  #put that into a dataframe
+  as.data.frame() %>% 
+  rownames_to_column("site") %>% 
+  full_join(site_type, by = "site")
+
+# do the same thing for the species
+PCAvect <- scores(birdPCA, display = "species") %>% 
+  as.data.frame() %>% 
+  rownames_to_column("species")
+
+PCA_plot <- ggplot() +
+  #plotting points as sites
+  geom_point(data = PCAscores, aes(x = PC1, y = PC2, color = landtype)) +
+  # lines as specieis
+  #start from the origin, end at the cooedinates in PCAvect
+  geom_segment(data = PCAvect, aes(x = 0, y = 0, xend = PC1, yend = PC2), arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_text(data = PCAvect, aes(x = PC1, y = PC2, label = species))
+
+PCA_plot
+```
+
+```{r using-ggvegan}
+# autoplot()
+PCA_biplot <- autoplot(birdPCA)
+PCA_biplot
+
+# fortify()
+PCA_fortify <- fortify(birdPCA)
+
+
+PCA_fort_sites <- PCA_fortify %>% 
+  filter(Score == "sites") %>% 
+  full_join(., site_type, by = c("Label" = "site"))
+
+
+PCA_fort_species <- PCA_fortify %>% 
+  filter(Score == "species")
+
+PCA_fortify_plot <- ggplot() +
+  geom_point(data = PCA_fort_sites, aes(x = PC1, y = PC2, col = landtype)) +
+  scale_color_manual(values = c("coral", "lightgreen", "darkblue")) +
+  geom_segment(data = PCA_fort_species, aes(x = 0, xend = PC1, y = 0, yend = PC2), 
+               arrow = arrow(length = unit(0.2, "cm"))) +
+  geom_text(data = PCA_fort_species, aes(x = PC1, y = PC2, label = Label))
+PCA_fortify_plot
+```
+
+#### NMDS
+
+Non-metric Multidimensional Scaling
+
+```{r bird-NMDS}
+#vegan:: metaMDS
+bird_NMDS <- metaMDS(birds)
+
+
+bird_NMDS
+
+# points: sample scores
+# dims: number of NMS axes
+# stress: stress of final solutions
+# data: what was ordinated and any transformations
+# distance: distance metric used
+# converged: whether or not solution converged
+# tries: number of configurations tried
+# species: scores of variables
+# call: how function was called
+
+stressplot(bird_NMDS)
+
+plot(bird_NMDS)
+#not very informative yet
+```
+
+```{r NMDS-plot}
+#join with metadata
+nmds_df <- scores(bird_NMDS, display = "sites") %>% 
+  as.data.frame() %>% 
+  rownames_to_column("site") %>% 
+  full_join(site_type, by = "site")
+
+#plot
+nmds_plot <- ggplot(nmds_df, aes(x = NMDS1, y = NMDS2, color = landtype, shape = landtype)) +
+  geom_point(size = 3, alpha = 0.8) +
+  stat_ellipse()
+nmds_plot
+```
+
+```{r}
+#figure out what species are coordinated with site dissimilarity. Which species significantly drive differences?
+#vegan::envfit
+fit <- envfit(bird_NMDS, birds, perm = 999) 
+
+
+fit_pvals <- fit$vectors$pvals %>% 
+  as.data.frame() %>% 
+  rownames_to_column("species") %>% 
+  dplyr::rename("pvals" = ".")
+
+#take out significant contributors
+fit_spp <- fit %>% 
+  scores(., display = "vectors") %>% 
+  as.data.frame() %>% 
+  rownames_to_column("species") %>% 
+  full_join(., fit_pvals, by = "species") %>% 
+  filter(pvals == 0.001)
+
+#plot again
+nmds_plot_new <- ggplot(nmds_df, aes(x = NMDS1, y = NMDS2)) +
+  coord_fixed() +
+  geom_point(aes(color = landtype, shape = landtype), 
+             size = 3, alpha = 0.8) +
+  stat_ellipse(aes(color = landtype)) +
+  geom_segment(data = fit_spp, aes(x = 0, xend = NMDS1, y = 0, yend = NMDS2),
+               arrow = arrow(length = unit(0.25, "cm")),
+               col = "black") +
+  geom_text(data = fit_spp, aes(label = species))
+nmds_plot_new
+```
+
+
+##### Things to consider about stress
+
+```{r subsampled-NMDS}
+#generally, stress that's higher than 0.2 means the ordination doesn't do a good job about telling differences, but that could be due to too many samples. Let's subsample
+sub <- birds[sample(nrow(birds), 20), ]
+subNMDS <- metaMDS(sub)
+stressplot(subNMDS)
+```
+
+### How is community structure related to specific environmental variables?
+
+```{r bird-CCA}
+#how much does each env factor contribute to community structure?
+#vegan::cca(response ~ environmental factors, dataframe)
+birdCCA <- cca(birds ~ canopy_height + stems_ha + big_stem_bas, data = env)
+birdCCA
+
+```
+
+```{r bird-CCA-plot}
+# using ggvegan
+ccaplot_ggvegan <- autoplot(birdCCA)
+ccaplot_ggvegan
+
+# using ggplot
+# get extension factor
+ccaplot <- plot(birdCCA)
+
+#note scaling factor which is imput by "arrow.mull" in ccaplot
+ccavectors <- as.matrix(scores(birdCCA, display = "bp", scaling = "species")*9.613362) %>% 
+  as.data.frame()
+
+# extract site coordinates
+site_data <- scores(birdCCA, display = "sites") %>% 
+  as.data.frame() %>% 
+  rownames_to_column("site") %>% 
+  full_join(site_type, by = "site")
+
+# extract species coordinates
+species_data <- scores(birdCCA, display = "species") %>% 
+  as.data.frame()
+
+# plot
+cca_plot <- ggplot(site_data) +
+  geom_point(aes(x = CCA1, y = CCA2, color = landtype), shape = 19) +
+  coord_fixed() +
+  geom_segment(data = ccavectors, aes(x = 0, y = 0, xend = CCA1, yend = CCA2), arrow = arrow(length = unit(0.2, "cm"))) +
+  scale_x_continuous(limits = c(-12, 10)) +
+  scale_y_continuous(limits = c(-3, 12)) +
+  geom_point(data = species_data, aes(x = CCA1, y = CCA2), shape = 17, size = 2, color = "blue") +
+  geom_text(data = ccavectors, aes(x = CCA1, y = CCA2, label = rownames(ccavectors)))
+
+cca_plot
+```

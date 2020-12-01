@@ -1,0 +1,168 @@
+---
+title: 'Tidy Tuesday: Geoms'
+author: "Scott Coffin"
+date: "9/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r install packages}
+#install.packages("psych")
+library(devtools)
+#devtools::install_github("an-bui/calecopal")
+
+#load packages
+library(tidyverse)
+library(psych)
+library(calecopal)
+
+##read in data
+penguins <- read_csv("penguins.csv")
+#look at what you have
+head(penguins)
+str(penguins)
+
+unique(penguins$species)
+
+#from psych pacakge for vis
+pairs.panels(penguins)
+```
+```{r scatterplots and lines}
+#basic scatterplot with geom_point
+ggplot(data = penguins) +
+  geom_point(aes(x = flipper_length_mm, y = body_mass_g))
+
+#adjust colors + shapes
+names(cal_palettes) #find selection of palettes
+cal_palette("lake")
+cal_palette("lake", n=50, "continuous")
+cal_palette("lake")[4] #if you just want one color. get hex code
+
+#Set color by species (discrete variable)
+ggplot(data = penguins) +
+  geom_point(aes(x = flipper_length_mm, y = body_mass_g, color = species))+
+  scale_color_manual(values= cal_palette("lake"))
+
+#Set color by bill length (continuous variable)
+ggplot(data = penguins) +
+  geom_point(aes(x = flipper_length_mm, y = body_mass_g, color = bill_length_mm))+
+  scale_color_gradientn(colors= cal_palette("lupinus"))
+
+#Get FANCY with geom_smooth
+ggplot(data = na.omit(penguins), aes(x = flipper_length_mm, y = body_mass_g, color = species)) +
+  geom_point() +
+   scale_color_manual(values= cal_palette("lake")) +
+  geom_smooth(method = "lm", level=.9) #typically uses LOESS, force linear method
+ 
+
+#Even fancier: other geom_lines
+ggplot(data = na.omit(penguins), aes(x = flipper_length_mm, y = body_mass_g, color = species)) +
+  geom_point() +
+  geom_hline(yintercept = mean(penguins$body_mass_g, na.rm= T)) #make sure to omit NAs to add horizontal line
+#geom_vline vertical line
+#geom_abline: any line based on slope/intercept
+
+
+#Annotate based on specific species (e.g. Adelie)
+ggplot(data = na.omit(penguins), aes(x = flipper_length_mm, y = body_mass_g, color = species)) +
+  geom_point() +
+  geom_hline(yintercept = mean(penguins$body_mass_g[penguins$species == "Adelie"], na.rm = TRUE))
+   #make sure to omit NAs to add horizontal line
+#geom_vline vertical line
+#geom_abline: any line based on slope/intercept
+
+```
+
+```{r histograms for contunious data}
+#basic histogram
+ggplot(data = penguins) + 
+  geom_histogram(aes(body_mass_g), bins= 10)
+
+#alternative based on binwidth
+ggplot(data = penguins) + 
+  geom_histogram(aes(body_mass_g), binwidth= 100)
+
+#manual breaks
+ggplot(data = penguins) + 
+  geom_histogram(aes(body_mass_g), breaks=c(2500, 3000, 3500, 4000))
+
+#show Categories
+ggplot(data = penguins, aes(fill = species)) + 
+  geom_histogram(aes(body_mass_g), bins= 10)+
+  facet_wrap(vars(species))
+
+#multifactor grid
+ggplot(data = penguins, aes(fill = species)) + 
+  geom_histogram(aes(body_mass_g), bins= 10)+
+  facet_grid(cols = vars(species), rows = vars(sex))
+
+#Density Plot
+ggplot(data = penguins) +
+  geom_density(aes(x = body_mass_g))
+```
+```{r boxplots}
+#Basic boxplot
+ggplot(data = penguins, aes(y = body_mass_g, x = species, fill = species)) +
+  geom_boxplot() + 
+  scale_fill_manual(values = cal_palette(("fire")))
+
+#Fancy: Geom_label (2 ways)
+ggplot(data = penguins, aes(y = body_mass_g, x = species, fill = species)) +
+  geom_boxplot() + 
+  scale_fill_manual(values = cal_palette(("fire"))) +
+  geom_label(aes(label = species))
+##Notice that this method doesn't work well for our dataset. So let's make a new dataset
+
+#make a new dataset summarize median body mass of each species
+df <- penguins %>%
+  group_by(species) %>%
+  summarise(n = n(), med = median(body_mass_g, na.rm = T))
+df #visualize
+
+data <- penguins %>%
+  group_by(species) %>%
+  summarise(sd = sd(body_mass_g, na.rm = T), body_mass_g = mean(body_mass_g, na.rm= T)) #MAKE SURE you put the SD first, otherwise it will not calculate!
+data #visualize
+
+#Now that have this other dataset, we can annotate with the count
+ggplot(data = penguins, aes(y = body_mass_g, x = species, fill = species)) +
+  geom_boxplot() + 
+  scale_fill_manual(values = cal_palette(("fire"))) +
+  geom_text(data = df, aes(x = species, y = med+120, label = n)) #geom_text removes boxes
+#y = med+120 puts label in consistent place for each boxplot
+
+#SUPER FANCY: Violin plots
+ggplot(data = penguins) +
+  geom_violin(aes(y = body_mass_g, x = species))
+
+
+```
+Bar/ column plots
+```{r barplots and error bars}
+#basic bar plots: using geom_col or geom_jitter for categorical data
+ggplot(data= penguins, aes(y = body_mass_g, x = species))+
+  geom_col(aes(fill = species))
+
+#make the width different
+ggplot(data= penguins, aes(y = body_mass_g, x = species))+
+  geom_jitter(aes(color = species), width = 0.1)
+
+#For inspiration go to http://R-GRAPH-GALLERY.COM
+
+#add error bars by summarizing data, then piping directly into ggplot
+penguins %>%
+  group_by(species) %>%
+  summarise(mass = mean(body_mass_g, na.rm = T),
+            sd = sd(body_mass_g, na.rm = T)) %>%
+  ggplot(aes(y = mass, x = species, fill = species))+
+  geom_col() + 
+  geom_errorbar(aes(ymin = mass - sd, ymax = mass + sd), width = 0.1)
+
+#use geom_bar
+
+```
+

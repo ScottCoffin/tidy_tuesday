@@ -1,0 +1,57 @@
+---
+title: "RStudio Recap"
+author: "Scott Coffin"
+date: "9/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Data and Packages##
+
+```{r packages}
+#Load necessary pacakges
+library(tidyverse)
+
+```
+ctrl + alt+ i enters code chunk
+
+```{r data}
+#load in data
+
+spooky_data <- read_csv("spooky_data.csv")
+view(spooky_data)
+
+```
+
+##Data Tidying
+
+```{r tidy}
+#examine structure.
+
+str(spooky_data)
+
+#Change column names. 
+#spooky_data <- spooky_data %>%
+ # rename(state = State, rank = Rank)
+
+```
+
+##Data viz
+```{r plot}
+#create a scatterplot
+spooky_fig <- ggplot(spooky_data, aes(x= state, y = pounds_candy_sold))+
+  geom_point(size = 3, alpha = 0.75) + 
+  geom_smooth(method = lm, color = "aquamarine2")+
+  labs(x = "State",
+       y = "Pounds of Candy Sold",
+       subtitle = "Tidy Teusday Demo",
+       caption = "data source") +
+  theme_classic()  #theme with only axes present
+  
+spooky_fig
+
+```
+

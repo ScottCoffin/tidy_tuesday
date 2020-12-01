@@ -1,0 +1,110 @@
+---
+title: "For Loops"
+author: "Scott Coffin"
+date: "9/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### INstrall libraries###
+
+```{r libraryies}
+library(tidyverse)
+
+```
+
+###Simple loop example###
+
+```{r examples}
+#print out "this year is [year]" where [year] is 2010 to 2015
+
+#inefficient way
+print(paste("This year is", 2010))
+print(paste("This year is", 2011))
+print(paste("This year is", 2012))
+print(paste("This year is", 2013))
+print(paste("This year is", 2014))
+print(paste("This year is", 2015))
+
+#Flor loop automomate repetivie code chunks
+for(year in 2010:2015){
+  print(paste("This year is", year))
+}
+
+#run loop based on a vector
+year <- 2010:2015
+
+for(j in year){
+  print(paste("This year is", j))
+}
+
+#if you want to create output vector, you have to do that manually
+
+x <- 2:20
+
+#output vector y
+y <- rep(NA, length(x))
+
+#concept: indexing 
+x[1] <- 100
+z <- 1
+x[z]
+
+#for loop
+for(k in 1:length(x)){
+  y[k] <- x[k]^2
+}
+
+y <- x^2
+y
+```
+
+```{r plots}
+### loops withn ggplot###
+iris
+head(iris)
+iris <- iris #recognize built-in dataset
+#create boxplots with each of different attributes
+
+#create a list of variables to plot
+col.names <- names(iris)
+variables <- col.names[1:length(col.names)-1] #exclude all but last variable (species)
+
+#tidy our dataframe into longdata
+iris_tidy <- pivot_longer(iris, col = variables, names_to = "attribute", values_to = "values")
+
+
+z=1 #to set iterator, in this case petal.width
+
+#for loop to plot each attribute
+for(z in 1:length(variables)){
+  #subset data for each attribute
+  subset <- subset(iris_tidy, attribute == variables[z])
+  
+  #create boxplots for attribute z
+  boxplot <- ggplot(subset, aes(x= Species, y=values, fill = Species)) +
+    geom_boxplot() +
+    scale_fill_brewer(palette = "Dark2") + theme_minimal()
+  
+  
+  #add in y axis label
+  yaxis.label <- gsub("\\.", " ", variables[z]) #remove periods in attributes names
+  boxplot <- boxplot +
+    labs(y = yaxis.label)
+  
+  print(boxplot)
+  
+  #export plot
+  file.name <- paste0("C:/Users/SCoffin/Documents/OFFLINE/DATA/R/Tidy Tuesday/Week 6/Week6_For Loops/", variables[z], "_boxplot.jpg")
+  #save plot
+  ggsave(boxplot, filename = file.name, dpi =300, height=4, width=6) #if you need to set units for size, add units="cm". default is inches. 
+}
+
+
+
+
+```
+
